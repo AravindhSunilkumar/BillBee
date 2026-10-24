@@ -1,14 +1,32 @@
-# Initial implementation status
+# Deployment status
 
-The application source, Supabase schema and core UI are implemented. Live Supabase database checks passed with all test records rolled back. Fourteen Node tests passed. The security advisor returned no findings; an audit actor foreign-key index was added after the performance check.
+BillBee is deployed at https://billnest-billing.vercel.app/.
 
-The local browser interface test issued a product/service invoice, recorded a partial receipt, checked the matching report totals and switched to a separate empty workspace. This used an isolated in-memory interface harness, not a production sign-in account.
+## Completed
 
-Before live deployment:
+- The application source is published in https://github.com/AravindhSunilkumar/BillBee.
+- Source commit `c1450963b1e9b6938140feeb4ed7fb2383b3754f` was deployed to the existing Vercel project `billnest-billing` through Vercel Drop. The deployment reached Ready.
+- The production API has the Supabase URL and publishable-key environment variables. No service-role key is used.
+- Supabase Auth Site URL was saved as `https://billnest-billing.vercel.app/` on 23 October 2026. Email confirmation remains enabled.
+- Public HTTP checks on 24 October 2026 returned 200 with `configured: true` for `/api?action=health`, and 401 for an unauthenticated `/api?action=session`. Responses included the Content Security Policy and `Cache-Control: no-store, private`.
+- Fourteen Node tests passed during implementation. Live database transaction checks passed with all fixtures rolled back.
+- The isolated browser UI check issued a product/service invoice, recorded a partial receipt, verified report totals and switched to a separate empty workspace. It used the internal in-memory harness rather than a production authentication account.
 
-1. Authorize the existing Vercel team access requested by the Vercel connector, then retry the intended project operation and deployment.
-2. Confirm the final deployed HTTPS origin in Supabase Auth URL configuration.
-3. Configure custom SMTP before opening email-confirmed registration to outside businesses.
-4. Complete a real sign-up/sign-in smoke test. Automatic approval review declined creation of a persistent QA auth credential; none was created.
+## Remaining before public registration
 
-The source must be deployed with `npm run dev` restored to `node --env-file-if-exists=.env.local server/dev.js`. The UI harness belongs only to internal testing.
+1. Choose an email provider and verified sending domain, then configure custom SMTP in Supabase. Enter SMTP credentials privately in the dashboard; never store them in the repository or chat. The default email service has recipient and rate restrictions.
+2. Complete email confirmation and a real browser sign-in, then verify onboarding and billing through the production API. The interrupted secure sign-in did not establish a verified app session.
+3. Review the Supabase Auth advisory for disabled leaked-password protection. The 24 October security check did not report public-table or RLS issues.
+
+An earlier automatic approval review declined creation of a persistent QA authentication credential. No test account was created by the agent, and that action must not be retried without separate explicit authorization.
+
+## Deployment maintenance
+
+Vercel's GitHub app is not connected to this project. Repository commits do not currently deploy automatically; use a deliberate Vercel deployment or configure the Git connection with the account owner's approval. The Vercel connector could see the team but not the project, so the approved browser fallback was used.
+
+The local development command remains `node --env-file-if-exists=.env.local server/dev.js`. The internal UI harness must never replace the production API or development command.
+
+References:
+
+- https://supabase.com/docs/guides/auth/auth-smtp
+- https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
