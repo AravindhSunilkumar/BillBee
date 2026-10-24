@@ -8,7 +8,7 @@ The app and API are deployed. Public registration still needs custom SMTP and a 
 
 ## Included
 
-- Email/password sign-up and sign-in, with email confirmation and HttpOnly session cookies.
+- Email/password sign-up and sign-in, confirmation resend, and password reset with HttpOnly session cookies. Reset emails are bound to the browser that requested them using PKCE.
 - Multiple separate business workspaces per account.
 - Customers and a product/service catalogue with prices, HSN/SAC codes and configurable tax treatments.
 - Draft invoices, server-recalculated totals, line discounts and quantities up to three decimal places.
@@ -53,6 +53,10 @@ Vercel deployment protection is preserved. To open registration beyond your Verc
 Supabase email confirmation remains enabled. The default SMTP service has recipient/rate restrictions and is intended for development; configure custom SMTP and the app Site URL in Supabase before offering sign-up to outside businesses. Credentials should be entered directly in the provider dashboard, never committed to this repository or pasted into chat.
 
 Reference: https://supabase.com/docs/guides/auth/auth-smtp
+
+Use **Resend confirmation email** for an expired signup link. Use **Forgot password?** to request a reset, then open the newest reset email in the same browser and set the new password. Email callbacks remove authentication parameters from the address bar; expired-link errors are displayed directly on the sign-in screen.
+
+For password recovery on localhost, add the exact local address `http://localhost:4173/` to the Supabase Auth redirect allow list. Production uses the app's existing HTTPS Site URL. A browser that did not request the reset cannot exchange its code without the private verifier cookie.
 
 ## Scope of GST support
 

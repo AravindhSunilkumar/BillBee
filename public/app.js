@@ -1,8 +1,9 @@
+import {authReturn} from './auth.js';
 import {STATES,DOCUMENTS,money,compactMoney,today,stateName,stateTaxName,esc as e,decimalInt,decimalValue,calculate,invoiceStatus,csv,uuidv4} from './billing.js';
 import {icon,brand,initials,status,date,empty,loading,field,textarea,select,search,pagination,invoiceTable,invoicePaper} from './ui.js';
 
 const app=document.querySelector('#app'),modal=document.querySelector('#modal');
-const s={user:null,businesses:[],bid:null,page:'overview',rows:[],query:'',pageNo:1,filter:'all',kind:'all',nav:0,editor:null,options:{customers:[],items:[]},detail:null,report:null,reportFrom:today().slice(0,7)+'-01',reportTo:today(),authMode:'signin',busy:false};
+const s={user:null,businesses:[],bid:null,page:'overview',rows:[],query:'',pageNo:1,filter:'all',kind:'all',nav:0,editor:null,options:{customers:[],items:[]},detail:null,report:null,reportFrom:today().slice(0,7)+'-01',reportTo:today(),authMode:'signin',authEmail:'',busy:false};
 const business=()=>s.businesses.find(b=>b.id===s.bid);
 const labels={overview:'Overview',invoices:'Invoices',customers:'Customers',catalog:'Products & services',payments:'Payments',reports:'Reports',settings:'Settings',editor:'New invoice',detail:'Invoice details'};
 const navItems=[['overview','grid'],['invoices','invoice'],['customers','people'],['catalog','box'],['payments','wallet'],['reports','chart'],['settings','settings']];
@@ -21,9 +22,16 @@ function showModal(title,html,{wide=false}={}){if(modal.open)modal.close();modal
 function modalError(error){const box=document.querySelector('#modal-error');if(box){box.textContent=error.message||error;box.classList.remove('hidden');}else toast(error.message||error,true);}
 const modalFooter=(label='Save')=>`<div class="modal-footer"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary" type="submit">${e(label)}</button></div>`;
 async function withForm(form,fn){const buttons=[...form.querySelectorAll('button[type=submit]')];buttons.forEach(b=>b.disabled=true);form.querySelectorAll('.form-error').forEach(x=>x.classList.add('hidden'));try{await fn();}catch(error){if(form.closest('dialog'))modalError(error);else{const box=form.querySelector('.form-error');if(box){box.textContent=error.message;box.classList.remove('hidden');}else toast(error.message,true);}}finally{buttons.forEach(b=>b.disabled=false);}}
-function renderAuth(mode=s.authMode,message=''){
+function renderAuth(mode=s.authMode,message='',isError=false){
  s.authMode=mode;
- app.innerHTML=`<main class="auth"><section class="auth-story">${brand()}<div class="auth-copy"><span class="eyebrow">${icon('spark')} A little less admin</span><h1>Less paperwork.<br><em>More business.</em></h1><p>From your first sale to your next milestone. Give every business a better way to bill.</p></div><div class="auth-sample" aria-label="Example invoice illustration"><div class="auth-sample-head"><div><span class="caps muted">Example invoice</span><h3 style="margin-top:4px">A good day's work.</h3></div><span class="avatar">${icon('check')}</span></div><div class="sample-line"><span>Products & services</span><span>₹10,000.00</span></div><div class="sample-line"><span>GST · example rate</span><span>₹1,800.00</span></div><div class="sample-line sample-total"><strong>Total</strong><strong style="color:#365e2e">₹11,800.00</strong></div></div><div class="auth-foot">PRODUCTS + SERVICES &nbsp; / &nbsp; MADE FOR YOUR EVERYDAY</div></section><section class="auth-main"><div class="auth-box"><div class="auth-mobile-brand">${brand()}</div><div class="caps">Your business, together</div><h2>${mode==='signup'?'Make room for growth.':'Welcome back.'}</h2><p>${mode==='signup'?'Create your account. Set up your business next.':'Sign in to pick up where you left off.'}</p>${message?`<div class="notice" style="margin-top:22px">${icon('check')}<span>${e(message)}</span></div>`:''}<form id="auth-form"><div class="form-error hidden" role="alert"></div>${field('Email address','email','',{type:'email',required:true,placeholder:'you@business.com',maxlength:254})}<label class="field">Password<div class="password-wrap"><input name="password" id="auth-password" type="password" required minlength="8" maxlength="128" placeholder="At least 8 characters" autocomplete="${mode==='signup'?'new-password':'current-password'}"><button type="button" class="icon-btn" data-action="toggle-password" aria-label="Show password">${icon('eye')}</button></div></label><button type="submit" class="btn primary block">${mode==='signup'?'Create account':'Sign in'}${icon('arrow')}</button></form><div class="switch">${mode==='signup'?'Already have an account?':'New to BillBee?'} <button class="btn link" data-action="auth-toggle">${mode==='signup'?'Sign in':'Create an account'}</button></div><p class="fine">${mode==='signup'?'Confirm your email, then return here to sign in. Each business account keeps its records separate.':'A clear view of your invoices, payments and customers. One workspace at a time.'}</p></div></section></main>`;
+ const copy={signin:['Welcome back.','Sign in to pick up where you left off.','Sign in'],signup:['Make room for growth.','Create your account. Set up your business next.','Create account'],confirm:['Confirm your email.','Request a fresh confirmation link for your BillBee account.','Resend confirmation email'],recover:['Reset your password.','Request a password reset for your BillBee account.','Send reset email'],reset:['Choose a new password.','Your reset link has been verified. Set your new BillBee password.','Save new password']}[mode];
+ const emailOnly=['confirm','recover'].includes(mode),newPassword=['signup','reset'].includes(mode);
+ const emailInput=mode==='reset'?`<p class="fine">${e(s.user?.email||'')}</p>`:field('Email address','email',s.authEmail,{type:'email',required:true,placeholder:'you@business.com',maxlength:254});
+ const passwordInput=emailOnly?'':`<label class="field">${mode==='reset'?'New password':'Password'}<div class="password-wrap"><input name="password" id="auth-password" type="password" required minlength="8" maxlength="128" placeholder="At least 8 characters" autocomplete="${newPassword?'new-password':'current-password'}"><button type="button" class="icon-btn" data-action="toggle-password" aria-label="Show password">${icon('eye')}</button></div></label>${mode==='reset'?'<label class="field">Confirm new password<input name="password_confirm" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label>':''}`;
+ const switchLink=['signin','signup'].includes(mode)?`<div class="switch">${mode==='signup'?'Already have an account?':'New to BillBee?'} <button class="btn link" data-action="auth-toggle">${mode==='signup'?'Sign in':'Create an account'}</button></div>`:`<div class="switch"><button class="btn link" data-action="auth-mode" data-mode="signin">Back to sign in</button></div>`;
+ const helpLinks=mode==='signin'?`<div class="switch"><button class="btn link" data-action="auth-mode" data-mode="recover">Forgot password?</button><button class="btn link" data-action="auth-mode" data-mode="confirm">Resend confirmation email</button></div>`:'';
+ const fine=mode==='recover'?'Open the newest reset email in this same browser. Keep this browser available until your password is updated.':mode==='confirm'?'Use only the newest confirmation email. After confirming, return here to sign in.':mode==='signup'?'Confirm your email before signing in. If you already have an account, use Sign in or Forgot password.':'A clear view of your invoices, payments and customers. One workspace at a time.';
+ app.innerHTML=`<main class="auth"><section class="auth-story">${brand()}<div class="auth-copy"><span class="eyebrow">${icon('spark')} A little less admin</span><h1>Less paperwork.<br><em>More business.</em></h1><p>From your first sale to your next milestone. Give every business a better way to bill.</p></div><div class="auth-sample" aria-label="Example invoice illustration"><div class="auth-sample-head"><div><span class="caps muted">Example invoice</span><h3 style="margin-top:4px">A good day's work.</h3></div><span class="avatar">${icon('check')}</span></div><div class="sample-line"><span>Products & services</span><span>₹10,000.00</span></div><div class="sample-line"><span>GST · example rate</span><span>₹1,800.00</span></div><div class="sample-line sample-total"><strong>Total</strong><strong style="color:#365e2e">₹11,800.00</strong></div></div><div class="auth-foot">PRODUCTS + SERVICES &nbsp; / &nbsp; MADE FOR YOUR EVERYDAY</div></section><section class="auth-main"><div class="auth-box"><div class="auth-mobile-brand">${brand()}</div><div class="caps">Your business, together</div><h2>${copy[0]}</h2><p>${copy[1]}</p>${message?`<div class="${isError?'form-error':'notice'}" role="${isError?'alert':'status'}" style="margin-top:22px">${e(message)}</div>`:''}<form id="auth-form"><div class="form-error hidden" role="alert"></div>${emailInput}${passwordInput}<button type="submit" class="btn primary block">${copy[2]}${icon('arrow')}</button></form>${switchLink}${helpLinks}<p class="fine">${fine}</p></div></section></main>`;
 }
 function businessFields(b={}){
  return `<div class="form-grid">${field('Business / legal name','name',b.name||'',{required:true,full:true,placeholder:'Your business name',maxlength:120})}${select('State / union territory','state_code',b.state_code||'', [['','Select a state'],...STATES],{required:true})}${select('GST registration','registration',b.registration||'unregistered',[['unregistered','Not registered under GST'],['regular','Regular GST registered'],['composition','Composition scheme']])}${field('GSTIN','gstin',b.gstin||'',{placeholder:'Required for a registered business',maxlength:15,hint:'Must match the state selected above.'})}${field('Business phone','phone',b.phone||'',{type:'tel',maxlength:40})}${field('Business email','email',b.email||s.user?.email||'',{type:'email',full:true,maxlength:200})}${textarea('Business address','address',b.address||'',{required:true,full:true,maxlength:1000,placeholder:'Building, street, city and PIN code'})}${textarea('Bank / payment details','bank_details',b.bank_details||'',{full:true,maxlength:1000,placeholder:'Bank name, account number, IFSC or UPI ID (optional)'})}${textarea('Default invoice terms','invoice_terms',b.invoice_terms??'Thank you for your business.',{full:true})}</div>`;
@@ -190,7 +198,20 @@ function exportReport(){
 
 document.addEventListener('submit',event=>{
  const form=event.target;if(!(form instanceof HTMLFormElement))return;event.preventDefault();
- if(form.id==='auth-form')withForm(form,async()=>{const values=formData(form),r=await api(s.authMode,{},values);if(r.confirmation_required){renderAuth('signin','Check your confirmation email, confirm your account, then return here to sign in.');return;}const session=await api('session');s.user=session.user;await loadBusinesses();});
+ if(form.id==='auth-form')withForm(form,async()=>{
+  const values=formData(form);if(values.email)s.authEmail=values.email.trim();
+  if(['confirm','recover'].includes(s.authMode)){
+   const mode=s.authMode;await api(mode==='confirm'?'resend_confirmation':'password_reset_request',{}, {email:s.authEmail});
+   renderAuth(mode,mode==='confirm'?'If this email is eligible, a new confirmation email has been requested. Open only the newest email.':'If this email has an account, a reset email has been requested. Open the newest reset email in this same browser.');return;
+  }
+  if(s.authMode==='reset'){
+   if(values.password!==values.password_confirm)throw new Error('The two passwords do not match.');
+   await api('password_update',{}, {password:values.password});await loadBusinesses();toast('Your password has been updated.');return;
+  }
+  const r=await api(s.authMode,{},values);
+  if(r.confirmation_required){renderAuth('confirm','Check your email for the newest confirmation link. If you already have an account, sign in or reset your password.');return;}
+  const session=await api('session');s.user=session.user;await loadBusinesses();
+ });
  else if(['setup-form','business-form','business-modal-form'].includes(form.id))withForm(form,async()=>{const isEdit=form.id==='business-form',b=await write('business_save',{...formData(form),id:isEdit?s.bid:undefined});if(modal.open)modal.close();s.editor=null;await loadBusinesses(b.id);toast(isEdit?'Business details updated.':'Your business workspace is ready.');});
  else if(form.id==='customer-form')withForm(form,async()=>{const c=await write('customer_save',{...formData(form),id:form.dataset.id||undefined});modal.close();toast('Customer saved.');if(s.page==='editor'){await loadOptions();s.editor.customer_id=c.id;s.editor.place_of_supply=c.state_code;s.editor.dirty=true;renderEditor();}else await loadList();});
  else if(form.id==='item-form')withForm(form,async()=>{const v=formData(form);await write('item_save',{...v,id:form.dataset.id||undefined,price_paise:decimalInt(v.price),gst_rate_bps:decimalInt(v.gst_rate),active:v.active==='true'});modal.close();toast('Catalogue item saved.');await loadList();});
@@ -238,7 +259,8 @@ document.addEventListener('click',async event=>{
  try{
   if(elem.dataset.nav){await navigate(elem.dataset.nav);return;}
   const action=elem.dataset.action;
-  if(action==='auth-toggle')renderAuth(s.authMode==='signin'?'signup':'signin');
+  if(action==='auth-toggle'){s.authEmail=document.querySelector('#auth-form [name=email]')?.value?.trim()||s.authEmail;renderAuth(s.authMode==='signin'?'signup':'signin');}
+  else if(action==='auth-mode'&&['signin','confirm','recover'].includes(elem.dataset.mode)){s.authEmail=document.querySelector('#auth-form [name=email]')?.value?.trim()||s.authEmail;renderAuth(elem.dataset.mode);}
   else if(action==='toggle-password'){const inp=document.querySelector('#auth-password');inp.type=inp.type==='password'?'text':'password';elem.setAttribute('aria-label',inp.type==='password'?'Show password':'Hide password');}
   else if(action==='signout'){
    if(s.editor?.dirty&&!confirm('Sign out and discard unsaved invoice changes?'))return;
@@ -277,6 +299,15 @@ document.addEventListener('click',async event=>{
 });
 window.addEventListener('beforeunload',event=>{if(s.editor?.dirty){event.preventDefault();event.returnValue='';}});
 async function init(){
+ const callback=authReturn(window.location.href);
+ if(callback.cleanUrl)window.history.replaceState(null,'',callback.cleanUrl);
+ if(callback.kind==='error'){renderAuth('signin',callback.message,true);return;}
+ if(callback.kind==='confirmation'){renderAuth('signin',callback.message);return;}
+ if(callback.kind==='recovery'){
+  try{const r=await api('auth_code_exchange',{}, {code:callback.code});s.user=r.user;renderAuth('reset');}
+  catch(error){renderAuth('recover',error.message,true);}
+  return;
+ }
  try{const r=await api('session');s.user=r.user;await loadBusinesses();}
  catch{renderAuth();}
 }

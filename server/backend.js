@@ -1,15 +1,18 @@
+import {randomBytes,createHash} from 'node:crypto';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const allowedWrites=new Set(['business_save','customer_save','item_save','invoice_save','invoice_issue','invoice_cancel','payment_add','payment_reverse']);
 export class HttpError extends Error{constructor(message,status=400){super(message);this.status=status;}}
 export function parseCookies(req){return Object.fromEntries(String(req.headers.cookie||'').split(';').filter(Boolean).map(s=>{const i=s.indexOf('=');return[s.slice(0,i).trim(),s.slice(i+1)];}));}
 function isSecure(req){return req.headers['x-forwarded-proto']==='https'||!String(req.headers.host||'').startsWith('localhost')&&!String(req.headers.host||'').startsWith('terminal.local')&&!String(req.headers.host||'').startsWith('127.0.0.1');}
-function cookies(res,session,req){
+function cookies(res,session,req,extra=[]){
  const suffix=`; Path=/; HttpOnly; SameSite=Lax${isSecure(req)?'; Secure':''}`;
  res.setHeader('Set-Cookie',[
   `bn_access=${session?.access_token||''}; Max-Age=${session?3600:0}${suffix}`,
-  `bn_refresh=${session?.refresh_token||''}; Max-Age=${session?60*60*24*30:0}${suffix}`
+  `bn_refresh=${session?.refresh_token||''}; Max-Age=${session?60*60*24*30:0}${suffix}`,...extra
  ]);
 }
+function recoveryCookie(req,value=''){return `bn_recovery=${value}; Max-Age=${value?3600:0}; Path=/api; HttpOnly; SameSite=Lax${isSecure(req)?'; Secure':''}`;}
+function validEmail(value){const email=String(value||'').trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)throw new HttpError('Enter a valid email address.');return email;}
 function json(res,status,value){res.statusCode=status;res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(value));}
 export function checkOrigin(req){
  const host=String(req.headers['x-forwarded-host']||req.headers.host||'').split(',')[0].trim();
@@ -55,6 +58,29 @@ export default async function handler(req,res){
   if(!['GET','POST'].includes(req.method))throw new HttpError('Method not allowed.',405);
   const write=req.method==='POST';if(write)checkOrigin(req);
   if(action==='health'&&!write){json(res,200,{ok:true,service:'BillBee',configured:Boolean(process.env.SUPABASE_URL&&process.env.SUPABASE_PUBLISHABLE_KEY)});return;}
+  if(['resend_confirmation','password_reset_request'].includes(action)){
+   if(!write)throw new HttpError('Method not allowed.',405);
+   const email=validEmail((await readBody(req)).email),redirect=encodeURIComponent(req.headers.origin+'/');
+   if(action==='resend_confirmation'){
+    await upstream('/auth/v1/resend?redirect_to='+redirect,{method:'POST',body:{type:'signup',email}});
+   }else{
+    const verifier=randomBytes(48).toString('base64url'),challenge=createHash('sha256').update(verifier).digest('base64url');
+    await upstream('/auth/v1/recover?redirect_to='+redirect,{method:'POST',body:{email,code_challenge:challenge,code_challenge_method:'s256'}});
+    res.setHeader('Set-Cookie',[recoveryCookie(req,verifier)]);
+   }
+   json(res,200,{ok:true});return;
+  }
+  if(action==='auth_code_exchange'){
+   if(!write)throw new HttpError('Method not allowed.',405);
+   const code=String((await readBody(req)).code||''),verifier=parseCookies(req).bn_recovery;
+   res.setHeader('Set-Cookie',[recoveryCookie(req)]);
+   if(!/^[A-Za-z0-9_-]{43,128}$/.test(verifier||''))throw new HttpError('Request a new password reset and open its email in the same browser.',400);
+   if(!code||code.length>2048)throw new HttpError('This reset link is invalid. Request a new password reset.');
+   const data=await upstream('/auth/v1/token?grant_type=pkce',{method:'POST',body:{auth_code:code,code_verifier:verifier}});
+   if(!data.access_token||!data.refresh_token||!data.user?.id||data.user.is_anonymous)throw new HttpError('This reset link could not be verified. Request a new password reset.');
+   cookies(res,data,req,[recoveryCookie(req)]);
+   json(res,200,{user:{id:data.user.id,email:data.user.email}});return;
+  }
   if(['signin','signup'].includes(action)){
    if(!write)throw new HttpError('Method not allowed.',405);
    const body=await readBody(req),email=String(body.email||'').trim(),password=String(body.password||'');
@@ -67,7 +93,15 @@ export default async function handler(req,res){
   if(action==='signout'){
    if(!write)throw new HttpError('Method not allowed.',405);
    const c=parseCookies(req);try{if(c.bn_access)await upstream('/auth/v1/logout?scope=local',{method:'POST',token:c.bn_access});}catch{}
-   cookies(res,null,req);json(res,200,{ok:true});return;
+   cookies(res,null,req,[recoveryCookie(req)]);json(res,200,{ok:true});return;
+  }
+  if(action==='password_update'){
+   if(!write)throw new HttpError('Method not allowed.',405);
+   const password=String((await readBody(req)).password||'');
+   if(password.length<8||password.length>128)throw new HttpError('Choose a password of 8–128 characters.');
+   const {token}=await session(req,res);
+   await upstream('/auth/v1/user',{method:'PUT',token,body:{password}});
+   json(res,200,{ok:true});return;
   }
   if(write&&action!=='write')throw new HttpError('Unknown action.',404);
   const {user,token}=await session(req,res);
