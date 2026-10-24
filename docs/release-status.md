@@ -24,6 +24,9 @@ The login page includes confirmation resend and password reset. Expired email ca
 
 All 24 Node checks pass, including callback error handling, CSRF/method checks, private verifier binding, cookie-only session exchange, and password-update ownership. A real emailed reset and the account owner's new-password entry remain to be verified.
 
+
+Recovery revision `69a897c73a6fcfadef62e08d78adbb18a5bcae10` is committed. Publishing it is currently blocked: the Vercel connection returned 403 for production deployment, the CLI is unavailable, and browser file selection stalled. The live app still uses the earlier production deployment until the tested source ZIP is uploaded through the project dashboard.
+
 ## Remaining before public registration
 
 1. Choose an email provider and verified sending domain, then configure custom SMTP in Supabase. Enter SMTP credentials privately in the dashboard; never store them in the repository or chat. The default email service has recipient and rate restrictions.
