@@ -2,6 +2,10 @@
 
 A first-release Indian billing web app for independent businesses. Each account owns its own business workspaces; records are isolated in Postgres with row-level security and server-checked ownership.
 
+Live app: https://billnest-billing.vercel.app/
+
+The app and API are deployed. Public registration still needs custom SMTP and a completed production sign-in test. See [deployment status](docs/release-status.md) for verified checks and remaining setup.
+
 ## Included
 
 - Email/password sign-up and sign-in, with email confirmation and HttpOnly session cookies.
