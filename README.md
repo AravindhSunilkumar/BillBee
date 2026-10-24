@@ -24,11 +24,21 @@ Browser-native ES modules and CSS; Node.js 24 API functions on Vercel; Supabase 
 
 ## Local setup
 
+### Windows
+
+Install Node.js 24 or later, then extract the project into a folder. The prepared local ZIP includes the existing project's public connection settings. Double-click `start-local.bat` and open `http://localhost:4173`. Keep the terminal window open while using the app; press Ctrl+C to stop it.
+
+When downloading the source directly from GitHub, first copy `.env.example` to `.env.local` and set the two Supabase connection values below. The launcher opens the configuration file when those values are missing.
+
+The web app runs on your PC. Authentication and database storage still use Supabase over the internet, and accounts still require email confirmation. Local startup does not require a custom website domain or a new email provider.
+
+### Terminal
+
 1. Use Node.js 24 or later.
 2. Copy `.env.example` to `.env.local`, then set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from your project. Never use a service-role or secret API key.
 3. Apply `database/schema.sql` once to a new, empty Supabase project. It is the consolidated schema, including the audit-actor index. `database/002_audit_index.sql` is the incremental index migration for an installation created before that index was included.
 4. Run `npm test`, then `npm run dev`.
-5. Open the local URL. On non-localhost HTTP development hosts, the application uses Web Crypto `getRandomValues` for request UUIDs; HTTPS uses `randomUUID` when available.
+5. Open `http://localhost:4173`. The server binds to the loopback address by default. Set `BILLBEE_HOST=0.0.0.0` only when a development environment needs access through a forwarded port. On non-localhost HTTP development hosts, the application uses Web Crypto `getRandomValues` for request UUIDs; HTTPS uses `randomUUID` when available.
 
 The application uses the REST Auth and Data APIs directly from the Node backend. The browser never receives Supabase access or refresh tokens. All writes require a same-origin JSON request. Database write operations are exposed as a narrowly authorized RPC, backed by a private-schema transaction function with an explicit user/owner check. The browser's authenticated database role has read access under RLS and cannot directly modify financial records.
 

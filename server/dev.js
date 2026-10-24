@@ -13,4 +13,6 @@ const server=http.createServer(async(req,res)=>{
   const bytes=await fs.readFile(file);res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');res.setHeader('Cache-Control','no-store');res.end(bytes);
  }catch{res.writeHead(404).end('Not found');}
 });
-server.listen(Number(process.env.PORT||4173),'0.0.0.0',()=>console.log('BillBee is serving on port '+(process.env.PORT||4173)));
+const port=Number(process.env.PORT||4173);
+const host=process.env.BILLBEE_HOST||'127.0.0.1';
+server.listen(port,host,()=>console.log('BillBee is running at http://'+(host==='0.0.0.0'?'localhost':host)+':'+port));
